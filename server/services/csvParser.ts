@@ -50,6 +50,21 @@ export function parseCsv(text: string): ParsedCsv {
     return { headers: [], rows: [], previews: new Map() };
   }
 
+  // Reject structurally-broken CSVs (unterminated quotes, undetectable
+  // delimiter) so we never feed shifted/truncated columns to the AI. Jagged
+  // rows (too few/many fields) are NOT fatal — PapaParse tolerates them and we
+  // want to accept messy-but-recoverable data.
+  const fatal = result.errors.filter(
+    (e) => e.type === "Quotes" || e.type === "Delimiter",
+  );
+  if (fatal.length > 0) {
+    const e = fatal[0];
+    const where = typeof e.row === "number" ? ` near row ${e.row + 1}` : "";
+    throw new Error(
+      `CSV appears malformed (${e.message}${where}). Please fix the file and re-upload.`,
+    );
+  }
+
   const headers = normalizeHeaders(table[0]);
   const rows: CsvRow[] = [];
   const previews = new Map<number, string>();

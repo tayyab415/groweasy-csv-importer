@@ -63,6 +63,18 @@ describe("normalizeRecord", () => {
     expect(out.record?.crm_note).toContain("9123456780");
   });
 
+  it("blanks placeholder contact values and skips when nothing real remains", () => {
+    const out = normalizeRecord(rec({ name: "X", email: "N/A", mobile_without_country_code: "not provided" }));
+    expect(out.record).toBeNull();
+  });
+
+  it("blanks a placeholder email but keeps the row when the mobile is real", () => {
+    const out = normalizeRecord(rec({ email: "-", mobile_without_country_code: "9876543210" }));
+    expect(out.record).not.toBeNull();
+    expect(out.record?.email).toBe("");
+    expect(out.record?.mobile_without_country_code).toBe("9876543210");
+  });
+
   it("escapes line breaks so the record stays one CSV row", () => {
     const out = normalizeRecord(rec({ email: "a@b.com", description: "line1\nline2\r\nline3" }));
     expect(out.record?.description).not.toMatch(/[\r\n]/);

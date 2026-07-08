@@ -36,18 +36,10 @@ function appendNote(note: string, fragment: string): string {
   return note ? `${note} | ${clean}` : clean;
 }
 
-/**
- * Split a field that may contain several emails/phones. Returns the first match
- * and the remainder (to be pushed into crm_note). Falls back to the raw trimmed
- * value when nothing matches the pattern.
- */
-function splitMulti(value: string, re: RegExp): { first: string; rest: string[] } {
+/** Return all trimmed regex matches in a value, or [] if none match. */
+function findAll(value: string, re: RegExp): string[] {
   const matches = value.match(re);
-  if (!matches || matches.length === 0) {
-    return { first: value.trim(), rest: [] };
-  }
-  const cleaned = matches.map((m) => m.trim());
-  return { first: cleaned[0], rest: cleaned.slice(1) };
+  return matches ? matches.map((m) => m.trim()) : [];
 }
 
 export interface NormalizeOutcome {
@@ -78,20 +70,22 @@ export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
     if (Number.isNaN(t)) record.created_at = "";
   }
 
-  // Multiple emails -> first stays, rest go to crm_note.
+  // Email: keep the first VALID email; extras go to crm_note. A field holding
+  // only a placeholder (e.g. "N/A", "-", "not provided") matches no email and is
+  // blanked, so the skip rule below can correctly drop the record.
   if (record.email) {
-    const { first, rest } = splitMulti(record.email, EMAIL_RE);
-    record.email = first;
-    for (const extra of rest) {
+    const emails = findAll(record.email, EMAIL_RE);
+    record.email = emails[0] ?? "";
+    for (const extra of emails.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional email: ${extra}`);
     }
   }
 
-  // Multiple mobiles -> first stays, rest go to crm_note.
+  // Mobile: same treatment — keep the first valid number, blank placeholders.
   if (record.mobile_without_country_code) {
-    const { first, rest } = splitMulti(record.mobile_without_country_code, PHONE_RE);
-    record.mobile_without_country_code = first;
-    for (const extra of rest) {
+    const phones = findAll(record.mobile_without_country_code, PHONE_RE);
+    record.mobile_without_country_code = phones[0] ?? "";
+    for (const extra of phones.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional phone: ${extra}`);
     }
   }

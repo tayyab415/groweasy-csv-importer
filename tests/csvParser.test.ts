@@ -50,4 +50,13 @@ describe("parseCsv", () => {
   it("returns empty result for empty input", () => {
     expect(parseCsv("").rows).toHaveLength(0);
   });
+
+  it("throws on structurally malformed CSV (unterminated quote)", () => {
+    expect(() => parseCsv('name,note\nJohn,"busy call later\nJane,ok')).toThrow(/malformed/i);
+  });
+
+  it("tolerates jagged rows (too few / too many fields)", () => {
+    const { rows } = parseCsv("a,b,c\n1,2\n3,4,5,6");
+    expect(rows).toHaveLength(2);
+  });
 });
