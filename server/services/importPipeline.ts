@@ -28,14 +28,18 @@ export async function runImport(
   const records: ImportResult["records"] = [];
   const skipped: SkippedRecord[] = [];
 
-  for (const { row, record } of extracted) {
+  for (const { row, record, failed } of extracted) {
     const outcome = normalizeRecord(record);
     if (outcome.record) {
       records.push(outcome.record);
     } else {
       skipped.push({
         row,
-        reason: outcome.skipReason ?? "Invalid record",
+        // Distinguish a genuine "no contact info" skip from an AI batch failure
+        // so the results table reports the real reason.
+        reason: failed
+          ? "AI extraction failed for this row (no data returned)"
+          : (outcome.skipReason ?? "Invalid record"),
         preview: previews.get(row) ?? "",
       });
     }

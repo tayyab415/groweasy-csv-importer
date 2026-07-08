@@ -16,6 +16,13 @@ export interface CsvRow {
 export interface ExtractedRow {
   row: number;
   record: CrmRecord;
+  /**
+   * True when the AI produced NO data for this row — either the batch failed
+   * after all retries, or the model omitted the row from its output. Lets the
+   * pipeline report an extraction failure instead of mislabeling the row as
+   * "contactless".
+   */
+  failed: boolean;
 }
 
 export interface ExtractOptions {
@@ -177,11 +184,14 @@ export async function extractRecords(
     try {
       byRow = await extractBatch(ai, model, batch, maxRetries);
     } catch {
-      byRow = new Map(); // whole batch failed -> empty records (skipped later)
+      byRow = new Map(); // whole batch failed after retries
     }
 
     for (const { row } of batch) {
-      results.push({ row, record: byRow.get(row) ?? emptyCrmRecord() });
+      const record = byRow.get(row);
+      // A row missing from the model output (batch failure or omission) has no
+      // extracted data — flag it so it is reported as an extraction failure.
+      results.push({ row, record: record ?? emptyCrmRecord(), failed: !record });
     }
 
     processed += batch.length;
