@@ -12,9 +12,11 @@ const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 30);
 export function createApiApp(): Express {
   const app = express();
 
-  // Cloud Run terminates TLS at a proxy; trust it so req.ip / X-Forwarded-For
-  // reflect the real client for rate limiting.
-  app.set("trust proxy", true);
+  // Cloud Run sits behind exactly one Google front-end proxy. Trusting a single
+  // hop makes req.ip the address that proxy observed (the real client) while
+  // ignoring caller-supplied X-Forwarded-For entries — so the rate-limit key
+  // can't be spoofed. (`true` would trust the whole chain and be spoofable.)
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
 
   // JSON bodies (for the `{ csv }` variant). Generous limit for large pastes;
   // multipart uploads are handled per-route by multer.

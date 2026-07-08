@@ -20,8 +20,8 @@ const STATUS_SET = new Set<string>(CRM_STATUS_VALUES);
 const SOURCE_SET = new Set<string>(DATA_SOURCE_VALUES);
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-/** Loose phone matcher: optional +, then 7+ digits allowing spaces/-/() . */
-const PHONE_RE = /\+?[\d][\d\s().-]{6,}\d/g;
+/** Loose phone matcher: optional +, then 7+ characters allowing spaces/-/(). */
+const PHONE_RE = /\+?[\d][\d\s().-]{5,}\d/g;
 
 /** Collapse real line breaks into the two-char sequence `\n` (CSV-safe). */
 function escapeNewlines(value: string): string {

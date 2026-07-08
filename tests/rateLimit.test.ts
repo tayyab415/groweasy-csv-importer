@@ -39,16 +39,18 @@ describe("rateLimit", () => {
     expect(next).toHaveBeenCalledTimes(2); // different IPs both allowed once
   });
 
-  it("prefers the X-Forwarded-For client IP", () => {
+  it("keys on req.ip and ignores spoofed X-Forwarded-For", () => {
     const mw = rateLimit({ windowMs: 60_000, max: 1 });
     const next = vi.fn();
-    const r1 = mockReqRes("proxy");
-    r1.req.headers["x-forwarded-for"] = "9.9.9.9, proxy";
-    const r2 = mockReqRes("proxy");
-    r2.req.headers["x-forwarded-for"] = "9.9.9.9, proxy";
+    // Same resolved req.ip but attacker rotates X-Forwarded-For — must NOT
+    // create a fresh bucket, so the second request is still blocked.
+    const r1 = mockReqRes("5.5.5.5");
+    r1.req.headers["x-forwarded-for"] = "1.1.1.1";
+    const r2 = mockReqRes("5.5.5.5");
+    r2.req.headers["x-forwarded-for"] = "2.2.2.2";
     mw(r1.req, r1.res, next);
     mw(r2.req, r2.res, next);
-    expect(next).toHaveBeenCalledTimes(1); // same forwarded IP -> second blocked
+    expect(next).toHaveBeenCalledTimes(1);
     expect(r2.res.statusCode).toBe(429);
   });
 });

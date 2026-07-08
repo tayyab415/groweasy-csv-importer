@@ -68,6 +68,12 @@ describe("normalizeRecord", () => {
     expect(out.record).toBeNull();
   });
 
+  it("keeps a 7-digit phone number (does not over-blank short numbers)", () => {
+    const out = normalizeRecord(rec({ mobile_without_country_code: "1234567" }));
+    expect(out.record).not.toBeNull();
+    expect(out.record?.mobile_without_country_code).toBe("1234567");
+  });
+
   it("blanks a placeholder email but keeps the row when the mobile is real", () => {
     const out = normalizeRecord(rec({ email: "-", mobile_without_country_code: "9876543210" }));
     expect(out.record).not.toBeNull();

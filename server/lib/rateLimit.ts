@@ -20,8 +20,9 @@ export interface RateLimitOptions {
 }
 
 function clientIp(req: Request): string {
-  const fwd = req.headers["x-forwarded-for"];
-  if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
+  // Use Express's resolved req.ip, which honors the app's `trust proxy` setting
+  // and therefore ignores caller-spoofed X-Forwarded-For entries. Falling back
+  // to the raw socket address (never the untrusted header) keeps the key safe.
   return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
