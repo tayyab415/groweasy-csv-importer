@@ -31,6 +31,15 @@ describe("parseCsv", () => {
     expect(rows[0].data).toEqual({ phone: "111", phone_2: "222", email: "a@b.com" });
   });
 
+  it("keeps generated header names unique even against pre-existing suffixes", () => {
+    const csv = "phone,phone,phone_2\n1,2,3";
+    const { headers, rows } = parseCsv(csv);
+    expect(new Set(headers).size).toBe(3); // all unique
+    expect(headers[0]).toBe("phone");
+    expect(rows[0].data[headers[1]]).toBe("2");
+    expect(rows[0].data[headers[2]]).toBe("3");
+  });
+
   it("skips fully empty rows", () => {
     const csv = "name,email\nJohn,john@x.com\n\n,\nJane,jane@y.com";
     const { rows } = parseCsv(csv);

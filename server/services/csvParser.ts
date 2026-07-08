@@ -16,15 +16,19 @@ export interface ParsedCsv {
 /**
  * Trim/normalize headers. Blank headers become positional (`column_N`), and
  * duplicate headers are made unique (`phone`, `phone_2`, ...) so no source
- * column is silently overwritten when a CSV repeats a header name.
+ * column is silently overwritten when a CSV repeats a header name. Uniqueness
+ * is checked against ALL names already used, so even a pre-existing `phone_2`
+ * cannot collide with a generated one.
  */
 function normalizeHeaders(fields: string[]): string[] {
-  const counts = new Map<string, number>();
+  const used = new Set<string>();
   return fields.map((f, i) => {
     const base = (f ?? "").trim() || `column_${i + 1}`;
-    const seen = counts.get(base) ?? 0;
-    counts.set(base, seen + 1);
-    return seen === 0 ? base : `${base}_${seen + 1}`;
+    let name = base;
+    let n = 2;
+    while (used.has(name)) name = `${base}_${n++}`;
+    used.add(name);
+    return name;
   });
 }
 

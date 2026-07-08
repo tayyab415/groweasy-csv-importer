@@ -3,15 +3,11 @@
  * API (under /api/*) and the Next.js frontend (everything else). Deployed as one
  * container to Cloud Run — one origin, no CORS.
  */
+// Import first: loads .env before any module that reads process.env at import
+// time (e.g. geminiExtractor's DEFAULT_MODEL / DEFAULT_BATCH_SIZE).
+import "./lib/loadEnv";
 import next from "next";
 import { createApiApp } from "./app";
-
-// Load a local .env for development (Cloud Run injects env vars directly).
-try {
-  process.loadEnvFile(".env");
-} catch {
-  /* no .env file — fine in production */
-}
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT || 3000);
