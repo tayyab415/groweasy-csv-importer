@@ -23,6 +23,10 @@ fi
 
 echo "Deploying '${SERVICE}' to project '${PROJECT_ID}' in '${REGION}'..."
 
+# `^@^` sets `@` as the env-var delimiter instead of the default comma, so a
+# value that happens to contain a comma is not split into multiple vars.
+# --allow-unauthenticated is required: the assignment mandates a publicly hosted
+# app. Abuse surface is bounded by the 5MB upload cap and per-batch limits.
 gcloud run deploy "${SERVICE}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
@@ -31,7 +35,7 @@ gcloud run deploy "${SERVICE}" \
   --memory 1Gi \
   --cpu 1 \
   --timeout 300 \
-  --update-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}"
+  --update-env-vars "^@^GEMINI_API_KEY=${GEMINI_API_KEY}@GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}"
 
 echo "Done. Service URL:"
 gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
