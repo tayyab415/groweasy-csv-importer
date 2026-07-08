@@ -27,9 +27,19 @@ export function parseCsvPreview(text: string): CsvPreview {
   }
 
   // Use the widest row so jagged rows (more cells than headers) still show all
-  // their cells in the preview — matching what the backend will actually import.
+  // their cells in the preview. Duplicate headers are made unique (matching the
+  // backend's `phone`, `phone_2`, ...) so the confirmation table reflects the
+  // distinct fields the AI will actually receive.
   const maxCols = table.reduce((m, r) => Math.max(m, r.length), 0);
-  const headers = Array.from({ length: maxCols }, (_, i) => (table[0][i] ?? "").trim() || `Column ${i + 1}`);
+  const used = new Set<string>();
+  const headers = Array.from({ length: maxCols }, (_, i) => {
+    const base = (table[0][i] ?? "").trim() || `Column ${i + 1}`;
+    let name = base;
+    let n = 2;
+    while (used.has(name)) name = `${base}_${n++}`;
+    used.add(name);
+    return name;
+  });
   const rows = table.slice(1).map((r) => headers.map((_, i) => (r[i] ?? "").toString()));
 
   return { headers, rows, totalRows: rows.length };
