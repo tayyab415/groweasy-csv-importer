@@ -50,13 +50,14 @@ export function parseCsv(text: string): ParsedCsv {
     return { headers: [], rows: [], previews: new Map() };
   }
 
-  // Reject structurally-broken CSVs (unterminated quotes, undetectable
-  // delimiter) so we never feed shifted/truncated columns to the AI. Jagged
-  // rows (too few/many fields) are NOT fatal — PapaParse tolerates them and we
-  // want to accept messy-but-recoverable data.
-  const fatal = result.errors.filter(
-    (e) => e.type === "Quotes" || e.type === "Delimiter",
-  );
+  // Reject only genuinely-corrupting parse errors — unterminated/mismatched
+  // quotes shift and truncate columns, so we must not feed them to the AI.
+  // We intentionally do NOT treat other error types as fatal:
+  //   - `Delimiter` (UndetectableDelimiter) fires for valid single-column files
+  //     like `email\na@b.com`, which are plausible uploads and parse fine.
+  //   - `FieldMismatch` (jagged rows) is tolerated — the app must accept messy
+  //     but recoverable data.
+  const fatal = result.errors.filter((e) => e.type === "Quotes");
   if (fatal.length > 0) {
     const e = fatal[0];
     const where = typeof e.row === "number" ? ` near row ${e.row + 1}` : "";

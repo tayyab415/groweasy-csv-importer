@@ -59,4 +59,11 @@ describe("parseCsv", () => {
     const { rows } = parseCsv("a,b,c\n1,2\n3,4,5,6");
     expect(rows).toHaveLength(2);
   });
+
+  it("accepts a valid single-column CSV (no false delimiter failure)", () => {
+    const { headers, rows } = parseCsv("email\na@b.com\nc@d.com");
+    expect(headers).toEqual(["email"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].data.email).toBe("a@b.com");
+  });
 });
