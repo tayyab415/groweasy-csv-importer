@@ -60,6 +60,14 @@ describe("parseCsv", () => {
     expect(rows).toHaveLength(2);
   });
 
+  it("keeps extra cells when a row is wider than the header", () => {
+    const { rows } = parseCsv("name\nAlice,alice@example.com");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].data.name).toBe("Alice");
+    // the extra cell (the email) must be preserved, not dropped
+    expect(Object.values(rows[0].data)).toContain("alice@example.com");
+  });
+
   it("accepts a valid single-column CSV (no false delimiter failure)", () => {
     const { headers, rows } = parseCsv("email\na@b.com\nc@d.com");
     expect(headers).toEqual(["email"]);

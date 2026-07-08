@@ -67,6 +67,7 @@ export function parseCsv(text: string): ParsedCsv {
   }
 
   const headers = normalizeHeaders(table[0]);
+  const headerSet = new Set(headers);
   const rows: CsvRow[] = [];
   const previews = new Map<number, string>();
 
@@ -80,6 +81,19 @@ export function parseCsv(text: string): ParsedCsv {
     headers.forEach((h, idx) => {
       data[h] = (cells[idx] ?? "").toString();
     });
+
+    // A jagged row can have MORE cells than the header row. Rather than drop
+    // that data (which could discard the only email/phone and wrongly skip the
+    // lead), give the extra cells generated, non-colliding `column_N` keys so
+    // the AI still sees them.
+    for (let idx = headers.length; idx < cells.length; idx++) {
+      const value = (cells[idx] ?? "").toString();
+      if (value.trim() === "") continue;
+      let key = `column_${idx + 1}`;
+      let n = 2;
+      while (headerSet.has(key) || key in data) key = `column_${idx + 1}_${n++}`;
+      data[key] = value;
+    }
 
     rows.push({ row: rowNum, data });
     previews.set(
