@@ -31,7 +31,7 @@ gcloud run deploy "${SERVICE}" \
   --memory 1Gi \
   --cpu 1 \
   --timeout 300 \
-  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}"
+  --update-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}"
 
 echo "Done. Service URL:"
 gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
