@@ -21,10 +21,17 @@ const columns: Column[] = CRM_FIELDS.map((field) => ({
       : undefined,
 }));
 
-/** Escape a CSV cell (records already have real newlines escaped to `\n`). */
+/**
+ * Escape a CSV cell (records already have real newlines escaped to `\n`).
+ * Also neutralizes CSV formula injection: a value starting with = + - @ or a
+ * control char can be executed as a formula by Excel/Sheets, so it is prefixed
+ * with a single quote before quoting.
+ */
 function csvCell(value: string): string {
-  if (/[",]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
+  let v = value;
+  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
 }
 
 function buildCsv(result: ImportResult): string {
