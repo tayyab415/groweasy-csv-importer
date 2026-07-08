@@ -13,11 +13,18 @@ export interface ParsedCsv {
   previews: Map<number, string>;
 }
 
-/** Trim/normalize a header; blank headers become positional (`column_N`). */
+/**
+ * Trim/normalize headers. Blank headers become positional (`column_N`), and
+ * duplicate headers are made unique (`phone`, `phone_2`, ...) so no source
+ * column is silently overwritten when a CSV repeats a header name.
+ */
 function normalizeHeaders(fields: string[]): string[] {
+  const counts = new Map<string, number>();
   return fields.map((f, i) => {
-    const trimmed = (f ?? "").trim();
-    return trimmed || `column_${i + 1}`;
+    const base = (f ?? "").trim() || `column_${i + 1}`;
+    const seen = counts.get(base) ?? 0;
+    counts.set(base, seen + 1);
+    return seen === 0 ? base : `${base}_${seen + 1}`;
   });
 }
 

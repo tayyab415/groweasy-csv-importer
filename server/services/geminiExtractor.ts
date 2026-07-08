@@ -26,8 +26,14 @@ export interface ExtractOptions {
   onProgress?: (processed: number, total: number) => void;
 }
 
+/** Coerce a value to a positive integer, falling back when invalid. */
+function positiveIntOr(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
+}
+
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
-const DEFAULT_BATCH_SIZE = Number(process.env.GEMINI_BATCH_SIZE || 25);
+const DEFAULT_BATCH_SIZE = positiveIntOr(process.env.GEMINI_BATCH_SIZE, 25);
 const DEFAULT_MAX_RETRIES = 3;
 
 /** Response schema forcing a flat array of string-only CRM objects. */
@@ -158,7 +164,7 @@ export async function extractRecords(
   options: ExtractOptions = {},
 ): Promise<ExtractedRow[]> {
   const model = options.model || DEFAULT_MODEL;
-  const batchSize = options.batchSize || DEFAULT_BATCH_SIZE;
+  const batchSize = positiveIntOr(options.batchSize, DEFAULT_BATCH_SIZE);
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   const ai = makeClient();
 

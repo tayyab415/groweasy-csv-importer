@@ -24,6 +24,13 @@ describe("parseCsv", () => {
     expect(rows[0].data.column_2).toBe("x");
   });
 
+  it("makes duplicate headers unique so no column is overwritten", () => {
+    const csv = "phone,phone,email\n111,222,a@b.com";
+    const { headers, rows } = parseCsv(csv);
+    expect(headers).toEqual(["phone", "phone_2", "email"]);
+    expect(rows[0].data).toEqual({ phone: "111", phone_2: "222", email: "a@b.com" });
+  });
+
   it("skips fully empty rows", () => {
     const csv = "name,email\nJohn,john@x.com\n\n,\nJane,jane@y.com";
     const { rows } = parseCsv(csv);
