@@ -42,10 +42,24 @@ function extractPhones(value: string): string[] {
     if (digitCount(seg) <= 13) {
       phones.push(seg);
     } else {
-      for (const token of seg.split(/[\s-]+/)) {
-        const t = token.trim();
-        if (digitCount(t) >= 7) phones.push(t);
+      // Multiple numbers glued together. Regroup the space/hyphen-split chunks
+      // into full numbers by accumulating digits toward ~10, so formatted
+      // numbers ("98765 43210") aren't shattered into too-short fragments.
+      let current: string[] = [];
+      let digits = 0;
+      const flush = () => {
+        if (current.length && digitCount(current.join(" ")) >= 7) {
+          phones.push(current.join(" "));
+        }
+        current = [];
+        digits = 0;
+      };
+      for (const token of seg.split(/[\s-]+/).filter(Boolean)) {
+        current.push(token);
+        digits += digitCount(token);
+        if (digits >= 10) flush();
       }
+      flush();
     }
   }
   return phones;
