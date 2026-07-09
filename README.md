@@ -5,8 +5,8 @@ CRM dumps, hand-made spreadsheets — and an LLM intelligently maps the arbitrar
 columns onto the fixed **GrowEasy CRM schema**. The hard part isn't parsing CSV;
 it's understanding messy, inconsistent columns and extracting clean CRM records.
 
-> **Live demo:** _added after deployment_
-> **Stack:** Next.js 16 (App Router) · Express 5 · Google Gemini · TypeScript
+> **Live demo:** https://groweasy-csv-importer-yp6clo7qna-el.a.run.app
+> **Stack:** Next.js 16 (App Router) · Express 5 · Google Gemini · TypeScript · Cloud Run
 
 ---
 
