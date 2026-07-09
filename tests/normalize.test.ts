@@ -84,7 +84,9 @@ describe("normalizeRecord", () => {
     expect(glued.record?.crm_note).toContain("9123456780");
 
     const formatted = normalizeRecord(rec({ mobile_without_country_code: "+91 98765 43210" }));
-    expect(formatted.record?.mobile_without_country_code).toBe("+91 98765 43210");
+    // Country code is split out into country_code; the local number is preserved intact.
+    expect(formatted.record?.country_code).toBe("+91");
+    expect(formatted.record?.mobile_without_country_code).toBe("98765 43210");
     expect(formatted.record?.crm_note).toBe("");
   });
 
@@ -124,5 +126,42 @@ describe("normalizeRecord", () => {
     const out = normalizeRecord(rec({ email: "a@b.com", description: "line1\nline2\r\nline3" }));
     expect(out.record?.description).not.toMatch(/[\r\n]/);
     expect(out.record?.description).toContain("\\n");
+  });
+
+  it("discards a hallucinated email not present in the source row", () => {
+    const out = normalizeRecord(rec({ name: "Alice", email: "fake@evil.com" }), "Alice, some notes");
+    expect(out.record).toBeNull();
+    expect(out.skipReason).toMatch(/no email or mobile/i);
+  });
+
+  it("keeps an email that appears in the source row", () => {
+    const out = normalizeRecord(rec({ email: "real@x.com" }), "Real Person real@x.com Mumbai");
+    expect(out.record?.email).toBe("real@x.com");
+  });
+
+  it("discards a hallucinated phone but keeps a source-backed one", () => {
+    const fake = normalizeRecord(rec({ mobile_without_country_code: "1112223333" }), "no number here");
+    expect(fake.record).toBeNull();
+    const real = normalizeRecord(rec({ mobile_without_country_code: "9876543210" }), "call 9876543210");
+    expect(real.record?.mobile_without_country_code).toBe("9876543210");
+  });
+
+  it("splits a country code out of the mobile when country_code is empty", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "+91 98765 43210" }),
+      "lead +91 98765 43210",
+    );
+    expect(out.record?.country_code).toBe("+91");
+    expect(out.record?.mobile_without_country_code).toBe("98765 43210");
+  });
+
+  it("does not move a lead_owner email into notes (no source over-reach)", () => {
+    const out = normalizeRecord(
+      rec({ email: "lead@x.com", lead_owner: "owner@corp.com" }),
+      "lead@x.com owner@corp.com",
+    );
+    expect(out.record?.email).toBe("lead@x.com");
+    expect(out.record?.lead_owner).toBe("owner@corp.com");
+    expect(out.record?.crm_note).not.toContain("owner@corp.com");
   });
 });

@@ -62,6 +62,13 @@ importRouter.post("/import", async (req: Request, res: Response) => {
     return;
   }
 
+  // Enforce the same 5MB cap on the JSON `{ csv }` path that multer enforces on
+  // uploads, so a large JSON body can't bypass the limit and trigger heavy work.
+  if (Buffer.byteLength(csvText, "utf-8") > MAX_BYTES) {
+    res.status(413).json({ error: "CSV exceeds the 5MB limit." });
+    return;
+  }
+
   // Stream NDJSON. Status 200 headers are flushed immediately.
   res.status(200);
   res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");

@@ -23,7 +23,11 @@ export function createApiApp(): Express {
   app.use(express.json({ limit: "10mb" }));
 
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", model: process.env.GEMINI_MODEL || "gemini-3.5-flash" });
+    res.json({
+      status: "ok",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+      apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
+    });
   });
 
   // Throttle the public, unauthenticated import route to bound Gemini abuse.

@@ -25,6 +25,13 @@ async function main() {
     handle(req, res);
   });
 
+  if (!process.env.GEMINI_API_KEY) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[startup] GEMINI_API_KEY is not set — CSV imports will fail until it is configured.",
+    );
+  }
+
   server.listen(port, hostname, () => {
     // eslint-disable-next-line no-console
     console.log(`> GrowEasy CSV Importer ready on http://${hostname}:${port} (dev=${dev})`);

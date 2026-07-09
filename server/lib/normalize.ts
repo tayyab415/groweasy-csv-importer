@@ -84,6 +84,24 @@ function findAll(value: string, re: RegExp): string[] {
   return matches ? matches.map((m) => m.trim()) : [];
 }
 
+/** Just the digits of a string. */
+function digitsOf(s: string): string {
+  return (s.match(/\d/g) || []).join("");
+}
+
+/**
+ * If a phone starts with a `+<country code>` followed by a separator and the
+ * country_code field is empty, split the code out (e.g. "+91 98765 43210" ->
+ * code "+91", local "98765 43210"). Glued numbers without a separator are left
+ * as-is (the split point would be ambiguous).
+ */
+function splitCountryCode(phone: string, existingCode: string): { code: string; local: string } {
+  if (existingCode) return { code: existingCode, local: phone };
+  const m = phone.match(/^\+\s*(\d{1,3})[\s-]+(\d.*)$/);
+  if (m) return { code: `+${m[1]}`, local: m[2].trim() };
+  return { code: existingCode, local: phone };
+}
+
 export interface NormalizeOutcome {
   record: CrmRecord | null;
   /** Set when the record is skipped (no email and no mobile). */
@@ -93,9 +111,24 @@ export interface NormalizeOutcome {
 /**
  * Normalize a single AI-produced record into a clean, rule-compliant CRM
  * record, or signal that it must be skipped.
+ *
+ * When `sourceText` (the raw source row) is provided, extracted emails/phones
+ * are validated against it: any contact the model returns that does NOT appear
+ * in the source is discarded as a hallucination / prompt-injection artifact, so
+ * the skip rule can't be bypassed by fabricated contact info.
  */
-export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
+export function normalizeRecord(raw: CrmRecord, sourceText?: string): NormalizeOutcome {
   const record: CrmRecord = { ...raw };
+
+  // Source contact allow-lists for anti-hallucination validation (see below).
+  const srcLower = sourceText?.toLowerCase();
+  const srcDigits = sourceText != null ? digitsOf(sourceText) : null;
+  const emailInSource = (e: string) => srcLower == null || srcLower.includes(e.toLowerCase());
+  const phoneInSource = (p: string) => {
+    if (srcDigits == null) return true;
+    const d = digitsOf(p);
+    return d.length >= 7 && srcDigits.includes(d);
+  };
 
   // Coerce + trim every field, normalizing BOTH real newlines and AI-escaped
   // ("\n") line breaks to real newlines. The model is told to escape line breaks
@@ -118,21 +151,29 @@ export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
     if (Number.isNaN(t)) record.created_at = "";
   }
 
-  // Email: keep the first VALID email; extras go to crm_note. A field holding
-  // only a placeholder (e.g. "N/A", "-", "not provided") matches no email and is
-  // blanked, so the skip rule below can correctly drop the record.
+  // Email: keep the first VALID email present in the source; extras -> crm_note.
+  // Placeholders ("N/A") match no email and are blanked; emails not found in the
+  // source row are dropped as hallucinated so the skip rule stays trustworthy.
   if (record.email) {
-    const emails = findAll(record.email, EMAIL_RE);
+    const emails = findAll(record.email, EMAIL_RE).filter(emailInSource);
     record.email = emails[0] ?? "";
     for (const extra of emails.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional email: ${extra}`);
     }
   }
 
-  // Mobile: keep the first valid number, extras -> crm_note, blank placeholders.
+  // Mobile: keep the first valid, source-backed number; split its country code
+  // into country_code when possible; extras -> crm_note; placeholders blanked.
   if (record.mobile_without_country_code) {
-    const phones = extractPhones(record.mobile_without_country_code);
-    record.mobile_without_country_code = phones[0] ?? "";
+    const phones = extractPhones(record.mobile_without_country_code).filter(phoneInSource);
+    const primary = phones[0] ?? "";
+    if (primary) {
+      const { code, local } = splitCountryCode(primary, record.country_code);
+      record.country_code = code;
+      record.mobile_without_country_code = local;
+    } else {
+      record.mobile_without_country_code = "";
+    }
     for (const extra of phones.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional phone: ${extra}`);
     }
