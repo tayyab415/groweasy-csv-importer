@@ -91,14 +91,16 @@ export default function Home() {
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-white">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3v18h18" />
-                <path d="M7 14l4-4 3 3 5-6" />
-              </svg>
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/groweasy_ai_logo.jpeg"
+              alt="GrowEasy logo"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg"
+            />
             <div className="leading-tight">
-              <div className="text-sm font-bold text-[var(--text)]">GrowEasy</div>
+              <div className="font-display text-base font-semibold text-[var(--text)]">GrowEasy</div>
               <div className="text-xs text-[var(--text-muted)]">AI CSV Importer</div>
             </div>
           </div>
@@ -109,10 +111,10 @@ export default function Home() {
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8 flex flex-col gap-4 sm:mb-10">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--text)] sm:text-3xl">
+            <h1 className="font-display text-3xl text-[var(--text)] sm:text-4xl">
               Import Leads via CSV
             </h1>
-            <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-muted)]">
+            <p className="mt-2 max-w-2xl text-sm text-[var(--text-muted)]">
               Upload any CSV — from Facebook, Google Ads, spreadsheets, or another CRM.
               Our AI maps the columns into the GrowEasy CRM format automatically.
             </p>
@@ -168,7 +170,7 @@ export default function Home() {
         {stage === "processing" && (
           <div className="animate-fade-in-up rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-6 py-16 text-center">
             <div className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-[3px] border-brand-200 border-t-brand-500" />
-            <p className="text-lg font-semibold text-[var(--text)]">Extracting CRM records…</p>
+            <p className="font-display text-2xl text-[var(--text)]">Extracting CRM records…</p>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               The AI is mapping your columns. This may take a moment for large files.
             </p>
