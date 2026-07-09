@@ -141,8 +141,10 @@ async function extractBatch(
       for (const item of parsed) {
         const rowNum = Number(item.row);
         if (!Number.isFinite(rowNum)) continue;
-        const record = CrmRecordSchema.parse(item);
-        byRow.set(rowNum, record);
+        // Keep the FIRST record for a given row; if the model mistakenly repeats
+        // a row number, a later duplicate must not clobber earlier data.
+        if (byRow.has(rowNum)) continue;
+        byRow.set(rowNum, CrmRecordSchema.parse(item));
       }
       return byRow;
     } catch (err) {

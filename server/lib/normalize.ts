@@ -20,8 +20,50 @@ const STATUS_SET = new Set<string>(CRM_STATUS_VALUES);
 const SOURCE_SET = new Set<string>(DATA_SOURCE_VALUES);
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-/** Loose phone matcher: optional +, then 7+ digits allowing spaces/-/() . */
-const PHONE_RE = /\+?[\d][\d\s().-]{6,}\d/g;
+
+/** Count the digits in a string. */
+function digitCount(s: string): number {
+  return (s.match(/\d/g) || []).length;
+}
+
+/**
+ * Extract distinct phone numbers from a raw value. Splits on clear multi-number
+ * delimiters (`,` `;` `/` `|` newline, " and "). A single number may contain
+ * internal spaces/hyphens for formatting (e.g. `+91 98765 43210`), so we only
+ * split a segment further on whitespace/hyphens when its digit count is too high
+ * to be one number (>13) — which reliably separates space/hyphen-glued numbers
+ * like `9876543210 9123456780` without breaking formatted single numbers.
+ */
+function extractPhones(value: string): string[] {
+  const phones: string[] = [];
+  for (const segment of value.split(/[,;/|\n]+|\s+and\s+/i)) {
+    const seg = segment.trim();
+    if (digitCount(seg) < 7) continue; // not a phone (e.g. "N/A")
+    if (digitCount(seg) <= 13) {
+      phones.push(seg);
+    } else {
+      // Multiple numbers glued together. Regroup the space/hyphen-split chunks
+      // into full numbers by accumulating digits toward ~10, so formatted
+      // numbers ("98765 43210") aren't shattered into too-short fragments.
+      let current: string[] = [];
+      let digits = 0;
+      const flush = () => {
+        if (current.length && digitCount(current.join(" ")) >= 7) {
+          phones.push(current.join(" "));
+        }
+        current = [];
+        digits = 0;
+      };
+      for (const token of seg.split(/[\s-]+/).filter(Boolean)) {
+        current.push(token);
+        digits += digitCount(token);
+        if (digits >= 10) flush();
+      }
+      flush();
+    }
+  }
+  return phones;
+}
 
 /** Collapse real line breaks into the two-char sequence `\n` (CSV-safe). */
 function escapeNewlines(value: string): string {
@@ -42,6 +84,24 @@ function findAll(value: string, re: RegExp): string[] {
   return matches ? matches.map((m) => m.trim()) : [];
 }
 
+/** Just the digits of a string. */
+function digitsOf(s: string): string {
+  return (s.match(/\d/g) || []).join("");
+}
+
+/**
+ * If a phone starts with a `+<country code>` followed by a separator and the
+ * country_code field is empty, split the code out (e.g. "+91 98765 43210" ->
+ * code "+91", local "98765 43210"). Glued numbers without a separator are left
+ * as-is (the split point would be ambiguous).
+ */
+function splitCountryCode(phone: string, existingCode: string): { code: string; local: string } {
+  if (existingCode) return { code: existingCode, local: phone };
+  const m = phone.match(/^\+\s*(\d{1,3})[\s-]+(\d.*)$/);
+  if (m) return { code: `+${m[1]}`, local: m[2].trim() };
+  return { code: existingCode, local: phone };
+}
+
 export interface NormalizeOutcome {
   record: CrmRecord | null;
   /** Set when the record is skipped (no email and no mobile). */
@@ -51,13 +111,34 @@ export interface NormalizeOutcome {
 /**
  * Normalize a single AI-produced record into a clean, rule-compliant CRM
  * record, or signal that it must be skipped.
+ *
+ * When `sourceText` (the raw source row) is provided, extracted emails/phones
+ * are validated against it: any contact the model returns that does NOT appear
+ * in the source is discarded as a hallucination / prompt-injection artifact, so
+ * the skip rule can't be bypassed by fabricated contact info.
  */
-export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
+export function normalizeRecord(raw: CrmRecord, sourceText?: string): NormalizeOutcome {
   const record: CrmRecord = { ...raw };
 
-  // Escape newlines and trim every field up front.
+  // Source contact allow-lists for anti-hallucination validation (see below).
+  const srcLower = sourceText?.toLowerCase();
+  const srcDigits = sourceText != null ? digitsOf(sourceText) : null;
+  const emailInSource = (e: string) => srcLower == null || srcLower.includes(e.toLowerCase());
+  const phoneInSource = (p: string) => {
+    if (srcDigits == null) return true;
+    const d = digitsOf(p);
+    return d.length >= 7 && srcDigits.includes(d);
+  };
+
+  // Coerce + trim every field, normalizing BOTH real newlines and AI-escaped
+  // ("\n") line breaks to real newlines. The model is told to escape line breaks
+  // as \n, so multi-value contact fields can arrive pre-escaped; converting them
+  // now lets email/phone extraction split correctly. Everything is re-escaped at
+  // the very end so each record stays a single CSV row.
   for (const field of CRM_FIELDS) {
-    record[field] = escapeNewlines(String(record[field] ?? ""));
+    record[field] = String(record[field] ?? "")
+      .replace(/\\r\\n|\\n|\\r/g, "\n")
+      .trim();
   }
 
   // Enum enforcement.
@@ -70,28 +151,39 @@ export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
     if (Number.isNaN(t)) record.created_at = "";
   }
 
-  // Email: keep the first VALID email; extras go to crm_note. A field holding
-  // only a placeholder (e.g. "N/A", "-", "not provided") matches no email and is
-  // blanked, so the skip rule below can correctly drop the record.
+  // Email: keep the first VALID email present in the source; extras -> crm_note.
+  // Placeholders ("N/A") match no email and are blanked; emails not found in the
+  // source row are dropped as hallucinated so the skip rule stays trustworthy.
   if (record.email) {
-    const emails = findAll(record.email, EMAIL_RE);
+    const emails = findAll(record.email, EMAIL_RE).filter(emailInSource);
     record.email = emails[0] ?? "";
     for (const extra of emails.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional email: ${extra}`);
     }
   }
 
-  // Mobile: same treatment — keep the first valid number, blank placeholders.
+  // Mobile: keep the first valid, source-backed number; split its country code
+  // into country_code when possible; extras -> crm_note; placeholders blanked.
   if (record.mobile_without_country_code) {
-    const phones = findAll(record.mobile_without_country_code, PHONE_RE);
-    record.mobile_without_country_code = phones[0] ?? "";
+    const phones = extractPhones(record.mobile_without_country_code).filter(phoneInSource);
+    const primary = phones[0] ?? "";
+    if (primary) {
+      const { code, local } = splitCountryCode(primary, record.country_code);
+      record.country_code = code;
+      record.mobile_without_country_code = local;
+    } else {
+      record.mobile_without_country_code = "";
+    }
     for (const extra of phones.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional phone: ${extra}`);
     }
   }
 
-  // Re-escape crm_note in case appended fragments reintroduced anything.
-  record.crm_note = escapeNewlines(record.crm_note);
+  // Now that contacts are extracted, escape newlines in EVERY field so each
+  // record stays a single, valid CSV row.
+  for (const field of CRM_FIELDS) {
+    record[field] = escapeNewlines(record[field]);
+  }
 
   // Skip rule: must have at least an email OR a mobile number.
   if (!record.email && !record.mobile_without_country_code) {

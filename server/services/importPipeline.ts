@@ -23,13 +23,17 @@ export async function runImport(
     return { records: [], skipped: [], totalImported: 0, totalSkipped: 0, totalRows: 0 };
   }
 
+  // Raw source text per row, so normalization can validate that extracted
+  // contacts actually appear in the source (anti-hallucination / injection).
+  const sourceById = new Map(rows.map((r) => [r.row, Object.values(r.data).join(" ")]));
+
   const extracted = await extractRecords(rows, options);
 
   const records: ImportResult["records"] = [];
   const skipped: SkippedRecord[] = [];
 
   for (const { row, record, failed } of extracted) {
-    const outcome = normalizeRecord(record);
+    const outcome = normalizeRecord(record, sourceById.get(row));
     if (outcome.record) {
       records.push(outcome.record);
     } else {

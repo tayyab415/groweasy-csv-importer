@@ -63,9 +63,42 @@ describe("normalizeRecord", () => {
     expect(out.record?.crm_note).toContain("9123456780");
   });
 
+  it("splits whitespace-separated phone numbers", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "9876543210 9123456780" }),
+    );
+    expect(out.record?.mobile_without_country_code).toBe("9876543210");
+    expect(out.record?.crm_note).toContain("9123456780");
+  });
+
+  it("regroups multiple space-formatted numbers instead of shattering them", () => {
+    const out = normalizeRecord(rec({ mobile_without_country_code: "98765 43210 91234 56780" }));
+    expect(out.record).not.toBeNull();
+    expect(out.record?.mobile_without_country_code).toBe("98765 43210");
+    expect(out.record?.crm_note).toContain("91234 56780");
+  });
+
+  it("splits hyphen-glued distinct numbers but keeps a formatted single number", () => {
+    const glued = normalizeRecord(rec({ mobile_without_country_code: "9876543210-9123456780" }));
+    expect(glued.record?.mobile_without_country_code).toBe("9876543210");
+    expect(glued.record?.crm_note).toContain("9123456780");
+
+    const formatted = normalizeRecord(rec({ mobile_without_country_code: "+91 98765 43210" }));
+    // Country code is split out into country_code; the local number is preserved intact.
+    expect(formatted.record?.country_code).toBe("+91");
+    expect(formatted.record?.mobile_without_country_code).toBe("98765 43210");
+    expect(formatted.record?.crm_note).toBe("");
+  });
+
   it("blanks placeholder contact values and skips when nothing real remains", () => {
     const out = normalizeRecord(rec({ name: "X", email: "N/A", mobile_without_country_code: "not provided" }));
     expect(out.record).toBeNull();
+  });
+
+  it("keeps a 7-digit phone number (does not over-blank short numbers)", () => {
+    const out = normalizeRecord(rec({ mobile_without_country_code: "1234567" }));
+    expect(out.record).not.toBeNull();
+    expect(out.record?.mobile_without_country_code).toBe("1234567");
   });
 
   it("blanks a placeholder email but keeps the row when the mobile is real", () => {
@@ -75,9 +108,60 @@ describe("normalizeRecord", () => {
     expect(out.record?.mobile_without_country_code).toBe("9876543210");
   });
 
+  it("splits newline-separated emails cleanly (no glued fragments)", () => {
+    const out = normalizeRecord(rec({ email: "a@b.com\nc@d.com" }));
+    expect(out.record?.email).toBe("a@b.com");
+    expect(out.record?.crm_note).toContain("c@d.com");
+    expect(out.record?.crm_note).not.toContain("nc@d.com");
+  });
+
+  it("splits AI-escaped (\\n) newline-separated emails", () => {
+    const out = normalizeRecord(rec({ email: "a@b.com\\nc@d.com" }));
+    expect(out.record?.email).toBe("a@b.com");
+    expect(out.record?.crm_note).toContain("c@d.com");
+    expect(out.record?.crm_note).not.toContain("nc@d.com");
+  });
+
   it("escapes line breaks so the record stays one CSV row", () => {
     const out = normalizeRecord(rec({ email: "a@b.com", description: "line1\nline2\r\nline3" }));
     expect(out.record?.description).not.toMatch(/[\r\n]/);
     expect(out.record?.description).toContain("\\n");
+  });
+
+  it("discards a hallucinated email not present in the source row", () => {
+    const out = normalizeRecord(rec({ name: "Alice", email: "fake@evil.com" }), "Alice, some notes");
+    expect(out.record).toBeNull();
+    expect(out.skipReason).toMatch(/no email or mobile/i);
+  });
+
+  it("keeps an email that appears in the source row", () => {
+    const out = normalizeRecord(rec({ email: "real@x.com" }), "Real Person real@x.com Mumbai");
+    expect(out.record?.email).toBe("real@x.com");
+  });
+
+  it("discards a hallucinated phone but keeps a source-backed one", () => {
+    const fake = normalizeRecord(rec({ mobile_without_country_code: "1112223333" }), "no number here");
+    expect(fake.record).toBeNull();
+    const real = normalizeRecord(rec({ mobile_without_country_code: "9876543210" }), "call 9876543210");
+    expect(real.record?.mobile_without_country_code).toBe("9876543210");
+  });
+
+  it("splits a country code out of the mobile when country_code is empty", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "+91 98765 43210" }),
+      "lead +91 98765 43210",
+    );
+    expect(out.record?.country_code).toBe("+91");
+    expect(out.record?.mobile_without_country_code).toBe("98765 43210");
+  });
+
+  it("does not move a lead_owner email into notes (no source over-reach)", () => {
+    const out = normalizeRecord(
+      rec({ email: "lead@x.com", lead_owner: "owner@corp.com" }),
+      "lead@x.com owner@corp.com",
+    );
+    expect(out.record?.email).toBe("lead@x.com");
+    expect(out.record?.lead_owner).toBe("owner@corp.com");
+    expect(out.record?.crm_note).not.toContain("owner@corp.com");
   });
 });
