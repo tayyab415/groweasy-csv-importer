@@ -4,36 +4,46 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---- Design tokens ------------------------------------------------------- */
+/*
+ * Aesthetics follow ./DESIGN.md (getdesign "claude" template): a warm cream
+ * canvas, coral primary, dark-navy surfaces, serif display + humanist sans.
+ * The brand ramp is Anthropic coral (#cc785c primary, #a9583e active).
+ */
 @theme {
-  --color-brand-50: #fff7ed;
-  --color-brand-100: #ffedd5;
-  --color-brand-200: #fed7aa;
-  --color-brand-300: #fdba74;
-  --color-brand-400: #fb923c;
-  --color-brand-500: #f97316;
-  --color-brand-600: #ea580c;
-  --color-brand-700: #c2410c;
+  --color-brand-50: #f8efe9;
+  --color-brand-100: #f1ddd1;
+  --color-brand-200: #e6c3b1;
+  --color-brand-300: #daa88f;
+  --color-brand-400: #d29276;
+  --color-brand-500: #cc785c; /* primary — Anthropic coral */
+  --color-brand-600: #a9583e; /* primary-active */
+  --color-brand-700: #8a4732;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* StyreneB substitute → Inter; Copernicus substitute → Cormorant Garamond. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), "Tiempos Headline", Garamond, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "JetBrains Mono", monospace;
 }
 
 /* ---- Base --------------------------------------------------------------- */
+/* Light: tinted cream canvas + warm ink (the brand's defining choice). */
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #64748b;
+  --bg: #faf9f5; /* canvas */
+  --surface: #fffefb; /* warm near-white cards (never cool gray) */
+  --surface-2: #f5f0e8; /* surface-soft — headers, hover, tracks */
+  --border: #e6dfd8; /* hairline */
+  --text: #141413; /* ink */
+  --text-muted: #6c6a64; /* muted */
 }
 
+/* Dark: Anthropic dark-navy product surfaces + cream-tinted on-dark text. */
 .dark {
-  --bg: #0b1120;
-  --surface: #111827;
-  --surface-2: #1e293b;
-  --border: #263449;
-  --text: #e5e7eb;
-  --text-muted: #94a3b8;
+  --bg: #141310;
+  --surface: #181715; /* surface-dark */
+  --surface-2: #252320; /* surface-dark-elevated */
+  --border: #302d29;
+  --text: #faf9f5; /* on-dark (echoes the canvas tone) */
+  --text-muted: #a09d96; /* on-dark-soft */
 }
 
 html,
@@ -44,6 +54,14 @@ body {
 
 * {
   border-color: var(--border);
+}
+
+/* Slab-serif display headlines (Copernicus → Cormorant Garamond). Weight 500,
+ * negative tracking — the editorial voice the design treats as non-negotiable. */
+.font-display {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 /* Refined scrollbars for the data tables. */

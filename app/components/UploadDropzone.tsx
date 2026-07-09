@@ -76,7 +76,7 @@ export default function UploadDropzone({ onFile, error }: UploadDropzoneProps) {
             <path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" />
           </svg>
         </div>
-        <p className="text-lg font-semibold text-[var(--text)]">Drop your CSV file here</p>
+        <p className="font-display text-2xl text-[var(--text)]">Drop your CSV file here</p>
         <p className="mt-1 text-sm text-[var(--text-muted)]">or click to browse files</p>
         <p className="mt-4 text-xs text-[var(--text-muted)]">Supported: .csv · up to 5 MB</p>
         <input

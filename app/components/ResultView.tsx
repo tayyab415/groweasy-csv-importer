@@ -49,7 +49,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "bra
         : "text-[var(--text-muted)]";
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-4">
-      <div className={`text-2xl font-bold ${toneCls}`}>{value}</div>
+      <div className={`font-display text-3xl ${toneCls}`}>{value}</div>
       <div className="mt-0.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </div>
@@ -80,7 +80,7 @@ export default function ResultView({ result, onReset }: ResultViewProps) {
 
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-[var(--text)]">
+          <h2 className="font-display text-2xl text-[var(--text)]">
             Extracted CRM Records
           </h2>
           <div className="flex gap-2">
