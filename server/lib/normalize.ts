@@ -97,9 +97,11 @@ export interface NormalizeOutcome {
 export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
   const record: CrmRecord = { ...raw };
 
-  // Escape newlines and trim every field up front.
+  // Coerce + trim every field, but KEEP real newlines for now so multi-value
+  // email/phone fields (separated by line breaks) split correctly during
+  // extraction below. Newlines are escaped at the very end.
   for (const field of CRM_FIELDS) {
-    record[field] = escapeNewlines(String(record[field] ?? ""));
+    record[field] = String(record[field] ?? "").trim();
   }
 
   // Enum enforcement.
@@ -132,8 +134,11 @@ export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
     }
   }
 
-  // Re-escape crm_note in case appended fragments reintroduced anything.
-  record.crm_note = escapeNewlines(record.crm_note);
+  // Now that contacts are extracted, escape newlines in EVERY field so each
+  // record stays a single, valid CSV row.
+  for (const field of CRM_FIELDS) {
+    record[field] = escapeNewlines(record[field]);
+  }
 
   // Skip rule: must have at least an email OR a mobile number.
   if (!record.email && !record.mobile_without_country_code) {

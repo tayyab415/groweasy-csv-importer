@@ -106,6 +106,13 @@ describe("normalizeRecord", () => {
     expect(out.record?.mobile_without_country_code).toBe("9876543210");
   });
 
+  it("splits newline-separated emails cleanly (no glued fragments)", () => {
+    const out = normalizeRecord(rec({ email: "a@b.com\nc@d.com" }));
+    expect(out.record?.email).toBe("a@b.com");
+    expect(out.record?.crm_note).toContain("c@d.com");
+    expect(out.record?.crm_note).not.toContain("nc@d.com");
+  });
+
   it("escapes line breaks so the record stays one CSV row", () => {
     const out = normalizeRecord(rec({ email: "a@b.com", description: "line1\nline2\r\nline3" }));
     expect(out.record?.description).not.toMatch(/[\r\n]/);
