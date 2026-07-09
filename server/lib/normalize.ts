@@ -97,11 +97,15 @@ export interface NormalizeOutcome {
 export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
   const record: CrmRecord = { ...raw };
 
-  // Coerce + trim every field, but KEEP real newlines for now so multi-value
-  // email/phone fields (separated by line breaks) split correctly during
-  // extraction below. Newlines are escaped at the very end.
+  // Coerce + trim every field, normalizing BOTH real newlines and AI-escaped
+  // ("\n") line breaks to real newlines. The model is told to escape line breaks
+  // as \n, so multi-value contact fields can arrive pre-escaped; converting them
+  // now lets email/phone extraction split correctly. Everything is re-escaped at
+  // the very end so each record stays a single CSV row.
   for (const field of CRM_FIELDS) {
-    record[field] = String(record[field] ?? "").trim();
+    record[field] = String(record[field] ?? "")
+      .replace(/\\r\\n|\\n|\\r/g, "\n")
+      .trim();
   }
 
   // Enum enforcement.

@@ -113,6 +113,13 @@ describe("normalizeRecord", () => {
     expect(out.record?.crm_note).not.toContain("nc@d.com");
   });
 
+  it("splits AI-escaped (\\n) newline-separated emails", () => {
+    const out = normalizeRecord(rec({ email: "a@b.com\\nc@d.com" }));
+    expect(out.record?.email).toBe("a@b.com");
+    expect(out.record?.crm_note).toContain("c@d.com");
+    expect(out.record?.crm_note).not.toContain("nc@d.com");
+  });
+
   it("escapes line breaks so the record stays one CSV row", () => {
     const out = normalizeRecord(rec({ email: "a@b.com", description: "line1\nline2\r\nline3" }));
     expect(out.record?.description).not.toMatch(/[\r\n]/);
