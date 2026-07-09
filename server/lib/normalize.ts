@@ -20,8 +20,36 @@ const STATUS_SET = new Set<string>(CRM_STATUS_VALUES);
 const SOURCE_SET = new Set<string>(DATA_SOURCE_VALUES);
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-/** Loose phone matcher: optional +, then 7+ characters allowing spaces/-/(). */
-const PHONE_RE = /\+?[\d][\d\s().-]{5,}\d/g;
+
+/** Count the digits in a string. */
+function digitCount(s: string): number {
+  return (s.match(/\d/g) || []).length;
+}
+
+/**
+ * Extract distinct phone numbers from a raw value. Splits on clear multi-number
+ * delimiters (`,` `;` `/` `|` newline, " and "). A single number may contain
+ * internal spaces/hyphens for formatting (e.g. `+91 98765 43210`), so we only
+ * split a segment further on whitespace/hyphens when its digit count is too high
+ * to be one number (>13) — which reliably separates space/hyphen-glued numbers
+ * like `9876543210 9123456780` without breaking formatted single numbers.
+ */
+function extractPhones(value: string): string[] {
+  const phones: string[] = [];
+  for (const segment of value.split(/[,;/|\n]+|\s+and\s+/i)) {
+    const seg = segment.trim();
+    if (digitCount(seg) < 7) continue; // not a phone (e.g. "N/A")
+    if (digitCount(seg) <= 13) {
+      phones.push(seg);
+    } else {
+      for (const token of seg.split(/[\s-]+/)) {
+        const t = token.trim();
+        if (digitCount(t) >= 7) phones.push(t);
+      }
+    }
+  }
+  return phones;
+}
 
 /** Collapse real line breaks into the two-char sequence `\n` (CSV-safe). */
 function escapeNewlines(value: string): string {
@@ -81,9 +109,9 @@ export function normalizeRecord(raw: CrmRecord): NormalizeOutcome {
     }
   }
 
-  // Mobile: same treatment — keep the first valid number, blank placeholders.
+  // Mobile: keep the first valid number, extras -> crm_note, blank placeholders.
   if (record.mobile_without_country_code) {
-    const phones = findAll(record.mobile_without_country_code, PHONE_RE);
+    const phones = extractPhones(record.mobile_without_country_code);
     record.mobile_without_country_code = phones[0] ?? "";
     for (const extra of phones.slice(1)) {
       record.crm_note = appendNote(record.crm_note, `Additional phone: ${extra}`);

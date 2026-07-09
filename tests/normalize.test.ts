@@ -63,6 +63,24 @@ describe("normalizeRecord", () => {
     expect(out.record?.crm_note).toContain("9123456780");
   });
 
+  it("splits whitespace-separated phone numbers", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "9876543210 9123456780" }),
+    );
+    expect(out.record?.mobile_without_country_code).toBe("9876543210");
+    expect(out.record?.crm_note).toContain("9123456780");
+  });
+
+  it("splits hyphen-glued distinct numbers but keeps a formatted single number", () => {
+    const glued = normalizeRecord(rec({ mobile_without_country_code: "9876543210-9123456780" }));
+    expect(glued.record?.mobile_without_country_code).toBe("9876543210");
+    expect(glued.record?.crm_note).toContain("9123456780");
+
+    const formatted = normalizeRecord(rec({ mobile_without_country_code: "+91 98765 43210" }));
+    expect(formatted.record?.mobile_without_country_code).toBe("+91 98765 43210");
+    expect(formatted.record?.crm_note).toBe("");
+  });
+
   it("blanks placeholder contact values and skips when nothing real remains", () => {
     const out = normalizeRecord(rec({ name: "X", email: "N/A", mobile_without_country_code: "not provided" }));
     expect(out.record).toBeNull();
