@@ -31,6 +31,8 @@ export interface ExtractOptions {
   maxRetries?: number;
   /** Fired after each batch so callers can stream progress to the client. */
   onProgress?: (processed: number, total: number) => void;
+  /** Aborts in-flight and pending batches (e.g. the client disconnected). */
+  signal?: AbortSignal;
 }
 
 /** Coerce a value to a positive integer, falling back when invalid. */
@@ -114,11 +116,13 @@ async function extractBatch(
   model: string,
   rows: CsvRow[],
   maxRetries: number,
+  signal?: AbortSignal,
 ): Promise<Map<number, CrmRecord>> {
   const prompt = buildBatchPrompt(rows);
   let lastErr: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) throw new Error("Import cancelled");
     try {
       const response = await ai.models.generateContent({
         model,
@@ -128,6 +132,7 @@ async function extractBatch(
           responseMimeType: "application/json",
           responseSchema: RESPONSE_SCHEMA,
           temperature: 0,
+          abortSignal: signal,
         },
       });
 
@@ -149,6 +154,7 @@ async function extractBatch(
       return byRow;
     } catch (err) {
       lastErr = err;
+      if (signal?.aborted) throw err; // don't burn retries on a cancelled import
       if (attempt < maxRetries) {
         await sleep(500 * 2 ** attempt); // 0.5s, 1s, 2s ...
       }
@@ -182,9 +188,11 @@ export async function extractRecords(
   let processed = 0;
 
   for (const batch of batches) {
+    // Stop issuing new batches once the client has gone away.
+    if (options.signal?.aborted) break;
     let byRow: Map<number, CrmRecord>;
     try {
-      byRow = await extractBatch(ai, model, batch, maxRetries);
+      byRow = await extractBatch(ai, model, batch, maxRetries, options.signal);
     } catch {
       byRow = new Map(); // whole batch failed after retries
     }

@@ -27,20 +27,38 @@ function digitCount(s: string): number {
 }
 
 /**
+ * Strip leading word-labels/conjunctions ("Call", "Mobile:", "or") and trailing
+ * separator noise from a phone candidate, while preserving a leading "+" country
+ * code and the number's internal spaces/hyphens (e.g. `+91 98765 43210`).
+ */
+function cleanPhone(seg: string): string {
+  return seg
+    .replace(/^(?:[A-Za-z]+[\s:.\-]+)+/, "")
+    .replace(/[\s.\-]+$/, "")
+    .trim();
+}
+
+/**
  * Extract distinct phone numbers from a raw value. Splits on clear multi-number
- * delimiters (`,` `;` `/` `|` newline, " and "). A single number may contain
- * internal spaces/hyphens for formatting (e.g. `+91 98765 43210`), so we only
- * split a segment further on whitespace/hyphens when its digit count is too high
- * to be one number (>13) — which reliably separates space/hyphen-glued numbers
- * like `9876543210 9123456780` without breaking formatted single numbers.
+ * delimiters (`,` `;` `/` `|` newline, " and ", " or "). A single number may
+ * contain internal spaces/hyphens for formatting (e.g. `+91 98765 43210`), so we
+ * only split a segment further on whitespace/hyphens when its digit count is too
+ * high to be one number (>13) — which reliably separates space/hyphen-glued
+ * numbers like `9876543210 9123456780` without breaking formatted single
+ * numbers. Each candidate is label-stripped so conjunctions/prefixes don't leak
+ * into the stored value.
  */
 function extractPhones(value: string): string[] {
   const phones: string[] = [];
-  for (const segment of value.split(/[,;/|\n]+|\s+and\s+/i)) {
-    const seg = segment.trim();
+  const push = (raw: string) => {
+    const p = cleanPhone(raw);
+    if (digitCount(p) >= 7) phones.push(p);
+  };
+  for (const segment of value.split(/[,;/|\n]+|\s+(?:and|or)\s+/i)) {
+    const seg = cleanPhone(segment.trim());
     if (digitCount(seg) < 7) continue; // not a phone (e.g. "N/A")
     if (digitCount(seg) <= 13) {
-      phones.push(seg);
+      push(seg);
     } else {
       // Multiple numbers glued together. Regroup the space/hyphen-split chunks
       // into full numbers by accumulating digits toward ~10, so formatted
@@ -49,7 +67,7 @@ function extractPhones(value: string): string[] {
       let digits = 0;
       const flush = () => {
         if (current.length && digitCount(current.join(" ")) >= 7) {
-          phones.push(current.join(" "));
+          push(current.join(" "));
         }
         current = [];
         digits = 0;
@@ -90,13 +108,14 @@ function digitsOf(s: string): string {
 }
 
 /**
- * If a phone starts with a `+<country code>` followed by a separator and the
- * country_code field is empty, split the code out (e.g. "+91 98765 43210" ->
- * code "+91", local "98765 43210"). Glued numbers without a separator are left
- * as-is (the split point would be ambiguous).
+ * If a phone starts with a `+<country code>` followed by a separator, split the
+ * code out (e.g. "+91 98765 43210" -> code "+91", local "98765 43210"). This runs
+ * even when `country_code` is already populated — the code the phone carries must
+ * never remain glued to the local number (the model sometimes fills both fields
+ * with the code). Glued numbers without a separator are left as-is (the split
+ * point would be ambiguous).
  */
 function splitCountryCode(phone: string, existingCode: string): { code: string; local: string } {
-  if (existingCode) return { code: existingCode, local: phone };
   const m = phone.match(/^\+\s*(\d{1,3})[\s-]+(\d.*)$/);
   if (m) return { code: `+${m[1]}`, local: m[2].trim() };
   return { code: existingCode, local: phone };
@@ -112,22 +131,32 @@ export interface NormalizeOutcome {
  * Normalize a single AI-produced record into a clean, rule-compliant CRM
  * record, or signal that it must be skipped.
  *
- * When `sourceText` (the raw source row) is provided, extracted emails/phones
- * are validated against it: any contact the model returns that does NOT appear
- * in the source is discarded as a hallucination / prompt-injection artifact, so
- * the skip rule can't be bypassed by fabricated contact info.
+ * When `source` (the raw source row, as the array of its cell values, or a single
+ * string) is provided, extracted emails/phones are validated against it: any
+ * contact the model returns that does NOT appear in the source is discarded as a
+ * hallucination / prompt-injection artifact, so the skip rule can't be bypassed
+ * by fabricated contact info. Phone digits must appear within a SINGLE source
+ * cell — never spread across the concatenation of unrelated numeric columns
+ * (e.g. a fake `1234567890` assembled from a `unit`=12345 and `zip`=67890).
  */
-export function normalizeRecord(raw: CrmRecord, sourceText?: string): NormalizeOutcome {
+export function normalizeRecord(raw: CrmRecord, source?: string | string[]): NormalizeOutcome {
   const record: CrmRecord = { ...raw };
 
   // Source contact allow-lists for anti-hallucination validation (see below).
-  const srcLower = sourceText?.toLowerCase();
-  const srcDigits = sourceText != null ? digitsOf(sourceText) : null;
-  const emailInSource = (e: string) => srcLower == null || srcLower.includes(e.toLowerCase());
+  const srcCells: string[] | null = Array.isArray(source)
+    ? source
+    : source != null
+      ? [source]
+      : null;
+  const srcLowerJoined = srcCells?.map((c) => c.toLowerCase()).join(" ") ?? null;
+  const srcCellDigits = srcCells?.map((c) => digitsOf(c)) ?? null;
+  const emailInSource = (e: string) =>
+    srcLowerJoined == null || srcLowerJoined.includes(e.toLowerCase());
   const phoneInSource = (p: string) => {
-    if (srcDigits == null) return true;
+    if (srcCellDigits == null) return true;
     const d = digitsOf(p);
-    return d.length >= 7 && srcDigits.includes(d);
+    if (d.length < 7) return false;
+    return srcCellDigits.some((cell) => cell.includes(d));
   };
 
   // Coerce + trim every field, normalizing BOTH real newlines and AI-escaped

@@ -23,9 +23,11 @@ export async function runImport(
     return { records: [], skipped: [], totalImported: 0, totalSkipped: 0, totalRows: 0 };
   }
 
-  // Raw source text per row, so normalization can validate that extracted
+  // Raw source cells per row, so normalization can validate that extracted
   // contacts actually appear in the source (anti-hallucination / injection).
-  const sourceById = new Map(rows.map((r) => [r.row, Object.values(r.data).join(" ")]));
+  // Kept as the per-cell array (not joined) so a phone can't be validated
+  // against digits spanning multiple unrelated columns.
+  const sourceById = new Map(rows.map((r) => [r.row, Object.values(r.data)]));
 
   const extracted = await extractRecords(rows, options);
 

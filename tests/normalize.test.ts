@@ -155,6 +155,43 @@ describe("normalizeRecord", () => {
     expect(out.record?.mobile_without_country_code).toBe("98765 43210");
   });
 
+  it("strips the country code from mobile even when country_code is already set", () => {
+    const out = normalizeRecord(
+      rec({ country_code: "+91", mobile_without_country_code: "+91 98765 43210" }),
+      "+91 98765 43210",
+    );
+    expect(out.record?.country_code).toBe("+91");
+    expect(out.record?.mobile_without_country_code).toBe("98765 43210");
+  });
+
+  it("rejects a fabricated phone assembled from digits spanning separate cells", () => {
+    // unit=12345, zip=67890 must NOT validate a fake "1234567890" mobile.
+    const out = normalizeRecord(
+      rec({ name: "Alice", mobile_without_country_code: "1234567890" }),
+      ["Alice", "12345", "67890"],
+    );
+    expect(out.record).toBeNull();
+    expect(out.skipReason).toMatch(/no email or mobile/i);
+  });
+
+  it("accepts a real phone that lives within a single source cell", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "9876543210" }),
+      ["Alice", "call 9876543210", "Mumbai"],
+    );
+    expect(out.record?.mobile_without_country_code).toBe("9876543210");
+  });
+
+  it("strips labels and conjunctions from phone values", () => {
+    const out = normalizeRecord(
+      rec({ mobile_without_country_code: "Call 9876543210 or 9123456780" }),
+      "Call 9876543210 or 9123456780",
+    );
+    expect(out.record?.mobile_without_country_code).toBe("9876543210");
+    expect(out.record?.crm_note).toContain("9123456780");
+    expect(out.record?.crm_note).not.toMatch(/\bor\b/);
+  });
+
   it("does not move a lead_owner email into notes (no source over-reach)", () => {
     const out = normalizeRecord(
       rec({ email: "lead@x.com", lead_owner: "owner@corp.com" }),

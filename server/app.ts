@@ -6,8 +6,16 @@ import express, { type Express } from "express";
 import { importRouter } from "./routes/import";
 import { rateLimit } from "./lib/rateLimit";
 
-const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 5 * 60 * 1000);
-const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 30);
+/** Coerce a value to a positive integer, falling back when invalid. */
+function positiveIntOr(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
+}
+
+// Validated so a malformed env value (e.g. RATE_LIMIT_MAX=abc -> NaN) can't
+// silently disable throttling (`count > NaN` is always false).
+const RATE_LIMIT_WINDOW_MS = positiveIntOr(process.env.RATE_LIMIT_WINDOW_MS, 5 * 60 * 1000);
+const RATE_LIMIT_MAX = positiveIntOr(process.env.RATE_LIMIT_MAX, 30);
 
 export function createApiApp(): Express {
   const app = express();
@@ -18,9 +26,10 @@ export function createApiApp(): Express {
   // can't be spoofed. (`true` would trust the whole chain and be spoofable.)
   app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
 
-  // JSON bodies (for the `{ csv }` variant). Generous limit for large pastes;
-  // multipart uploads are handled per-route by multer.
-  app.use(express.json({ limit: "10mb" }));
+  // JSON bodies (for the `{ csv }` variant). Kept just above the route's 5MB CSV
+  // cap so the parser doesn't buffer far more than the cap into memory, while
+  // still letting a 5-6MB body reach the route and get the friendly 413 message.
+  app.use(express.json({ limit: "6mb" }));
 
   app.get("/api/health", (_req, res) => {
     res.json({

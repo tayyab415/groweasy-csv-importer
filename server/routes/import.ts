@@ -75,17 +75,25 @@ importRouter.post("/import", async (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("X-Accel-Buffering", "no"); // disable proxy buffering
 
+  // If the client disconnects mid-stream, abort so we stop spending Gemini
+  // quota/cost on batches whose result nobody will read.
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+
   try {
     const result = await runImport(csvText, {
+      signal: controller.signal,
       onProgress: (processed, total) => {
-        writeEvent(res, { type: "progress", processed, total });
+        if (!res.writableEnded) writeEvent(res, { type: "progress", processed, total });
       },
     });
-    writeEvent(res, { type: "result", result });
+    if (!res.writableEnded) writeEvent(res, { type: "result", result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Extraction failed.";
-    writeEvent(res, { type: "error", message });
+    if (!res.writableEnded) writeEvent(res, { type: "error", message });
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 });
