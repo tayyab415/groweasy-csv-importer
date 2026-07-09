@@ -26,6 +26,15 @@ export function parseCsvPreview(text: string): CsvPreview {
     return { headers: [], rows: [], totalRows: 0 };
   }
 
+  // Match the backend: reject structurally-broken CSVs (unterminated quotes) up
+  // front so the user sees a clear error at preview time rather than confirming a
+  // corrupted preview that only fails after the AI call.
+  const fatal = result.errors.find((e) => e.type === "Quotes");
+  if (fatal) {
+    const where = typeof fatal.row === "number" ? ` near row ${fatal.row + 1}` : "";
+    throw new Error(`This CSV appears malformed (${fatal.message}${where}). Please fix it and re-upload.`);
+  }
+
   // Use the widest row so jagged rows (more cells than headers) still show all
   // their cells in the preview. Duplicate headers are made unique (matching the
   // backend's `phone`, `phone_2`, ...) so the confirmation table reflects the

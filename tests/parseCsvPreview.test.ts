@@ -29,4 +29,8 @@ describe("parseCsvPreview", () => {
   it("returns empty for empty input", () => {
     expect(parseCsvPreview("").totalRows).toBe(0);
   });
+
+  it("throws on structurally malformed CSV (unterminated quote)", () => {
+    expect(() => parseCsvPreview('name,note\nJohn,"busy call later\nJane,ok')).toThrow(/malformed/i);
+  });
 });

@@ -37,8 +37,12 @@ export default function Home() {
       setFile(f);
       setPreview(parsed);
       setStage("preview");
-    } catch {
-      setError("Could not read this file. Please try another CSV.");
+    } catch (err) {
+      setError(
+        err instanceof Error && /malformed/i.test(err.message)
+          ? err.message
+          : "Could not read this file. Please try another CSV.",
+      );
     }
   }
 
