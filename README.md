@@ -97,7 +97,7 @@ server/
   services/      csvParser · geminiExtractor (batching+retry) · importPipeline
   lib/           prompt (AI instructions) · normalize (rule enforcement)
 app/             Next.js frontend (upload → preview → confirm → result)
-tests/           Vitest unit tests
+tests/           Vitest unit tests (parser, normalizer, pipeline, health & sanity)
 ```
 
 ## License
