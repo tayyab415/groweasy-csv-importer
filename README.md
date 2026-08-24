@@ -103,3 +103,8 @@ tests/           Vitest unit tests (parser, normalizer, pipeline, health & sanit
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+### Extended Testing
+The test suite covers:
+- `schemaValidation.test.ts`: Zod schema verification for CRM field mapping.
+- `health.test.ts`: Sanity checks for CSV parser and server health endpoints.
