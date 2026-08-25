@@ -108,3 +108,4 @@ MIT — see [LICENSE](./LICENSE).
 The test suite covers:
 - `schemaValidation.test.ts`: Zod schema verification for CRM field mapping.
 - `health.test.ts`: Sanity checks for CSV parser and server health endpoints.
+
